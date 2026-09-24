@@ -40,6 +40,10 @@ docker run --rm -p 4173:4173 \
 
 Provider-specific keys such as Cesium, OpenSky, TomTom, AISStream, FIRMS, or OpenAI remain optional and must be supplied only when those original God's Eye capabilities are enabled. Never put the Ontario 511 developer key in this runtime.
 
+## Why this runtime is not `vite preview`
+
+The original God's Eye provider stack is implemented as Vite server middleware. A plain static `vite preview` deployment would not preserve the complete provider API behavior. `scripts/bm-runtime.mjs` therefore starts Vite in middleware mode behind a normal Node HTTP server so the original provider plugins remain active while the module is hosted remotely.
+
 ## BM Core gateway
 
 BM Core must set:
