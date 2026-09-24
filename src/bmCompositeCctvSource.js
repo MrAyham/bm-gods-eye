@@ -11,7 +11,11 @@ function finite(value, fallback) {
 function chooseView(camera) {
   const views = Array.isArray(camera?.views) ? camera.views : [];
   return (
-    views.find((view) => view?.url && !/unavailable|offline|disabled/i.test(String(view.status || ''))) ||
+    views.find(
+      (view) =>
+        view?.url &&
+        !/unavailable|offline|disabled/i.test(String(view.status || '')),
+    ) ||
     views.find((view) => view?.url) ||
     null
   );
@@ -21,15 +25,30 @@ function labelFor(camera) {
   const location = String(camera?.location || '').trim();
   const roadway = String(camera?.roadway || '').trim();
   const direction = String(camera?.direction || '').trim();
-  return location || [roadway, direction].filter(Boolean).join(' · ') || `Ontario 511 Camera ${camera?.id || ''}`.trim();
+  return (
+    location ||
+    [roadway, direction].filter(Boolean).join(' · ') ||
+    `Ontario 511 Camera ${camera?.id || ''}`.trim()
+  );
 }
 
 function cityFor(camera) {
   const text = `${camera?.location || ''} ${camera?.roadway || ''}`.toLowerCase();
-  if (/windsor|essex|tecumseh|la salle|lasalle/.test(text)) return 'Windsor / Essex';
+  if (/windsor|essex|tecumseh|la salle|lasalle/.test(text))
+    return 'Windsor / Essex';
   if (/london|strathroy|woodstock/.test(text)) return 'London Corridor';
-  if (/toronto|mississauga|brampton|oakville|burlington|hamilton|milton/.test(text)) return 'GTA Corridor';
+  if (/toronto|mississauga|brampton|oakville|burlington|hamilton|milton/.test(text))
+    return 'GTA Corridor';
   return 'Ontario Corridor';
+}
+
+function headingFromDirection(value) {
+  const direction = String(value || '').toLowerCase();
+  if (/north/.test(direction)) return 0;
+  if (/east/.test(direction)) return 90;
+  if (/south/.test(direction)) return 180;
+  if (/west/.test(direction)) return 270;
+  return 0;
 }
 
 /**
@@ -67,13 +86,14 @@ export function createBmCompositeCctvSource({
         url: view?.url || '',
         lat,
         lon,
-        headingDeg: 0,
-        headingConfidence: 'low',
+        headingDeg: headingFromDirection(camera?.direction),
+        headingConfidence: camera?.direction ? 'medium' : 'low',
         fovDeg: 70,
         rangeM: 350,
         mountHeightM: 10,
         pitchDeg: -12,
-        licenseNote: 'Public roadway camera metadata and imagery via Ontario 511.',
+        licenseNote:
+          'Public roadway camera metadata and imagery via Ontario 511.',
         credit: 'Ontario 511',
         code: String(camera.id || ''),
       });
@@ -104,7 +124,10 @@ export function createBmCompositeCctvSource({
       const ontarioSources = ops ? ingestOntario(ops) : [];
       return {
         ...baseResult,
-        sources: [...(Array.isArray(baseResult?.sources) ? baseResult.sources : []), ...ontarioSources],
+        sources: [
+          ...(Array.isArray(baseResult?.sources) ? baseResult.sources : []),
+          ...ontarioSources,
+        ],
       };
     },
 
@@ -119,7 +142,8 @@ export function createBmCompositeCctvSource({
 
       if (ops) ingestOntario(ops);
       const now = Date.now();
-      const ontarioStatus = ops?.status?.cameras === 'live' ? 'live' : 'unavailable';
+      const ontarioStatus =
+        ops?.status?.cameras === 'live' ? 'live' : 'unavailable';
       const ontarioHealth = [...ontarioById.entries()].map(([id, entry]) => ({
         id,
         status: entry.view?.url ? ontarioStatus : 'unavailable',
@@ -133,7 +157,10 @@ export function createBmCompositeCctvSource({
 
       return {
         ...baseResult,
-        cameras: [...(Array.isArray(baseResult?.cameras) ? baseResult.cameras : []), ...ontarioHealth],
+        cameras: [
+          ...(Array.isArray(baseResult?.cameras) ? baseResult.cameras : []),
+          ...ontarioHealth,
+        ],
       };
     },
 
