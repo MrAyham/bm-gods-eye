@@ -2,6 +2,7 @@ import { createWeatherClock } from '../layers/weather/clock.js';
 import { createWeatherLayer } from '../layers/weather/index.js';
 import { createCyclonesLayer } from '../layers/cyclones/index.js';
 import { createWindLayer } from '../layers/wind/index.js';
+import { createOntarioEventsLayer } from '../layers/ontarioEvents/index.js';
 import { createLayerCatalog } from './catalog.js';
 import { LAYER_STATE_REGISTRY } from '../data/layerState.js';
 import { createMilitaryRegistry } from '../layers/aircraft/classification.js';
@@ -35,6 +36,7 @@ const SOURCE_METHODS = Object.freeze({
   military: ['getSnapshot'],
   vessels: ['getSnapshot'],
   cctv: ['getCatalog', 'getHealth', 'getFrameUrl', 'getMediaUrl'],
+  ontarioEvents: ['getSnapshot'],
   radio: ['getDirectory', 'recordClick'],
   traffic: [
     'requestRoads',
@@ -147,6 +149,7 @@ export function createApplicationCatalog({
         createApplicationFirePerimeters({
           source: sources['fire-perimeters'],
         }),
+        createOntarioEventsLayer({ source: sources.ontarioEvents }),
         createApplicationAlpr({ surface, source: sources.alpr }),
         satellites,
         createApplicationLaunches({ source: sources.launches, satellites }),
