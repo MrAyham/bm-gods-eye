@@ -67,10 +67,16 @@ export const LOCAL_ONLY_LAYER_METADATA = Object.freeze([
   Object.freeze({ id: 'local-adsb', disposition: 'local-only' }),
 ]);
 
+/** BM-authenticated layers are intentionally not serialized into public shares. */
+export const BM_SESSION_LAYER_METADATA = Object.freeze([
+  Object.freeze({ id: 'ontario-events', disposition: 'local-only' }),
+]);
+
 /** Serialization metadata for every layer the application catalog constructs. */
 export const APPLICATION_LAYER_METADATA = Object.freeze([
   ...LAYER_STATE_REGISTRY,
   ...LOCAL_ONLY_LAYER_METADATA,
+  ...BM_SESSION_LAYER_METADATA,
 ]);
 
 /** Construct the current catalog without choosing any source provider.
