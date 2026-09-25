@@ -6,9 +6,16 @@ export function normalizeBmModuleBase(value = import.meta.env?.BASE_URL || '/') 
   return base.endsWith('/') ? base : `${base}/`;
 }
 
+function isBmOwnedApiPath(pathname) {
+  return (
+    pathname === BM_ONTARIO_OPS_PATH ||
+    pathname.startsWith(`${BM_ONTARIO_OPS_PATH}/`)
+  );
+}
+
 export function rewriteBmApiPath(pathname, baseValue = import.meta.env?.BASE_URL || '/') {
   const base = normalizeBmModuleBase(baseValue);
-  if (base === '/' || !pathname.startsWith('/api/') || pathname === BM_ONTARIO_OPS_PATH)
+  if (base === '/' || !pathname.startsWith('/api/') || isBmOwnedApiPath(pathname))
     return pathname;
   return `${base}api/${pathname.slice('/api/'.length)}`;
 }
