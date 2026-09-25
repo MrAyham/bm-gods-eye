@@ -2,6 +2,7 @@ import { createCctvSource } from './layers/cctv/source.js';
 import { fetchBmOntarioOps } from './bmOntarioOps.js';
 
 const ONTARIO_PREFIX = 'ontario511:';
+const BM_CAMERA_FRAME_PATH = '/api/ops/ontario511/camera';
 
 function finite(value, fallback) {
   const number = Number(value);
@@ -89,6 +90,14 @@ function regionalCameraPriority(camera, region) {
   return 3;
 }
 
+function bmCameraFrameUrl(entry) {
+  const cameraId = String(entry?.camera?.id || '').trim();
+  const viewId = String(entry?.view?.id || '').trim();
+  if (!cameraId || !viewId || !entry?.view?.url) return '';
+  const params = new URLSearchParams({ cameraId, viewId });
+  return `${BM_CAMERA_FRAME_PATH}?${params.toString()}`;
+}
+
 /**
  * Extend the native CCTV source with authenticated BM Ontario 511 cameras.
  * The Ontario developer key never enters this runtime; BM Core owns it.
@@ -112,7 +121,8 @@ export function createBmCompositeCctvSource({
 
       const id = `${ONTARIO_PREFIX}${camera.id}`;
       const view = chooseView(camera);
-      ontarioById.set(id, { camera, view });
+      const entry = { camera, view };
+      ontarioById.set(id, entry);
 
       sources.push({
         id,
@@ -121,7 +131,7 @@ export function createBmCompositeCctvSource({
         provider: 'Ontario 511',
         sourceKind: 'public-road-camera',
         feedType: 'image',
-        url: view?.url || '',
+        url: bmCameraFrameUrl(entry),
         lat,
         lon,
         headingDeg: headingFromDirection(camera?.direction),
@@ -177,10 +187,6 @@ export function createBmCompositeCctvSource({
 
       return {
         ...baseResult,
-        // When the authenticated BM Ontario feed is present it becomes the
-        // primary catalog. The native upstream cameras are still retained after
-        // it, so standalone/source behavior remains available without letting an
-        // Austin seed win the active-camera slot on a Windsor BM launch.
         sources: [...ontarioSources, ...baseSources],
       };
     },
@@ -220,13 +226,13 @@ export function createBmCompositeCctvSource({
 
     getFrameUrl(camera) {
       const entry = ontarioById.get(String(camera?.id || ''));
-      if (entry) return entry.view?.url || '';
+      if (entry) return bmCameraFrameUrl(entry);
       return baseSource.getFrameUrl(camera);
     },
 
     getMediaUrl(camera) {
       const entry = ontarioById.get(String(camera?.id || ''));
-      if (entry) return entry.view?.url || '';
+      if (entry) return bmCameraFrameUrl(entry);
       return baseSource.getMediaUrl(camera);
     },
 
