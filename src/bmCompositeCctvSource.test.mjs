@@ -40,6 +40,11 @@ test('BM composite CCTV merges Ontario 511 cameras into the native catalog', asy
   const catalog = await source.getCatalog();
 
   assert.equal(catalog.sources.length, 2);
+  assert.equal(
+    catalog.sources[0].id,
+    'ontario511:42',
+    'authenticated Ontario cameras should lead the BM catalog instead of the native Austin source',
+  );
   const ontario = catalog.sources.find((camera) => camera.id === 'ontario511:42');
   assert.ok(ontario);
   assert.equal(ontario.provider, 'Ontario 511');
