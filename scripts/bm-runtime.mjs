@@ -3,7 +3,7 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createServer } from 'node:http';
 import { createServer as createViteServer, loadEnv } from 'vite';
-import standaloneConfig from '../server/standalone/vite.config.js';
+import { localProviderPlugins } from '../server/providers/local.js';
 
 const port = Number.parseInt(process.env.PORT || '4173', 10) || 4173;
 const host = process.env.HOST || '0.0.0.0';
@@ -38,26 +38,30 @@ async function existingFile(filePath) {
 }
 
 if (!(await existingFile(distIndex))) {
-  console.error('[BM Runtime] dist/index.html is missing. Run `npm run build:bm` during the Render Build phase.');
+  console.error(
+    '[BM Runtime] dist/index.html is missing. Run `npm run build:bm` during the Render Build phase.',
+  );
   process.exit(1);
 }
 
-function resolveStandaloneConfig(command) {
-  return typeof standaloneConfig === 'function'
-    ? standaloneConfig({ command, mode: 'production' })
-    : standaloneConfig;
-}
-
-// Keep the original provider plugins alive, but use Vite only as the API
-// middleware host. Browser assets are served from the prebuilt production bundle.
-const serveConfig = await resolveStandaloneConfig('serve');
+// Provider runtime only. Do not load the standalone browser Vite config here:
+// that config also installs Cesium/application plugins and retains a much larger
+// module graph than a small Render instance needs after the frontend is prebuilt.
 const providerVite = await createViteServer({
-  ...serveConfig,
+  configFile: false,
+  envFile: false,
+  publicDir: false,
+  clearScreen: false,
+  logLevel: 'warn',
   appType: 'custom',
   mode: 'production',
+  plugins: localProviderPlugins(),
+  optimizeDeps: {
+    noDiscovery: true,
+  },
   server: {
-    ...(serveConfig.server || {}),
     middlewareMode: true,
+    hmr: false,
     host,
     port,
   },
@@ -94,7 +98,7 @@ function healthPayload() {
   return JSON.stringify({
     ok: true,
     service: 'bm-gods-eye',
-    runtime: 'prebuilt-static+provider-middleware',
+    runtime: 'prebuilt-static+provider-only-vite',
     moduleBase,
     timestamp: new Date().toISOString(),
   });
@@ -229,6 +233,7 @@ server.listen(port, host, () => {
   console.log(`[BM Runtime] God's Eye listening on http://${host}:${port}`);
   console.log(`[BM Runtime] module base ${moduleBase}`);
   console.log('[BM Runtime] frontend mode prebuilt production assets');
+  console.log('[BM Runtime] provider mode lightweight Vite middleware only');
 });
 
 async function shutdown(signal) {
