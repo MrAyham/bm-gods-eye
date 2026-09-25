@@ -7,8 +7,9 @@ function bmLegacyCesiumImports() {
     enforce: 'pre',
     transform(code, id) {
       const cleanId = String(id || '').split('?')[0].replace(/\\/g, '/');
-      if (!cleanId.includes('/src/') || !/\.[mc]?js$/.test(cleanId)) return null;
-      if (!/\bCesium\s*\./.test(code)) return null;
+      if (!/\.[mc]?js$/.test(cleanId)) return null;
+      if (cleanId.includes('/node_modules/')) return null;
+      if (!/\bCesium\b/.test(code)) return null;
 
       const hasCesiumBinding =
         /import\s+\*\s+as\s+Cesium\s+from\s+['"]cesium['"]/.test(code) ||
@@ -33,14 +34,14 @@ function bmLegacyCesiumImports() {
  * providers are attached only by scripts/bm-runtime.mjs at runtime. This keeps
  * Render build memory predictable while preserving the original browser app.
  *
- * The fork point also predates cleanup of a few historic bare `Cesium.*`
- * references. The BM-only pre-transform above turns those into explicit ESM
- * imports at build time instead of depending on a mutable global namespace.
+ * The fork point predates cleanup of a few historic bare `Cesium` references.
+ * The BM-only pre-transform above turns any local module that references the
+ * namespace without binding it into an explicit ESM import. `node_modules` is
+ * deliberately excluded so Cesium's own package graph is never rewritten.
  *
  * Keep minification disabled temporarily while the BM fork is being integrated.
  * This makes production stack traces point at readable function names and emits
- * source maps, so any remaining legacy runtime reference can be fixed at source
- * instead of patched through a global namespace.
+ * source maps, so any remaining legacy runtime reference can be fixed at source.
  */
 export default defineConfig(({ command, mode }) => {
   const loaded = loadEnv(mode, process.cwd(), '');
