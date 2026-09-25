@@ -1,7 +1,12 @@
 import { catalogControlServices } from './catalog.js';
 import { StyleManager } from '../ui/composition.js';
-import { flyToAustin } from '../camera.js';
+import { flyToAustin, flyToBmOntarioCorridor } from '../camera.js';
 import { initCockpitCloudEffects } from '../cockpitCloudEffects.js';
+
+function isBmMountedModule() {
+  const base = String(import.meta.env?.BASE_URL || '/');
+  return base.startsWith('/modules/gods-eye/');
+}
 
 /** Construct the existing controls and camera presentation. */
 export function createApplicationControls({
@@ -39,10 +44,14 @@ export function createApplicationControls({
   });
   defer(() => cockpitCloudEffects?.destroy());
 
-  // If no share link state, do default fly-to Austin
   if (!styleManager.hasShareState) {
-    loaderStatus.textContent = 'Flying to Austin, TX...';
-    defer(flyToAustin(viewer));
+    if (isBmMountedModule()) {
+      loaderStatus.textContent = 'Opening Windsor → London → GTA corridor...';
+      defer(flyToBmOntarioCorridor(viewer));
+    } else {
+      loaderStatus.textContent = 'Flying to Austin, TX...';
+      defer(flyToAustin(viewer));
+    }
   } else {
     loaderStatus.textContent = 'Restoring shared view...';
   }
