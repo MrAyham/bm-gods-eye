@@ -1,3 +1,5 @@
+import * as Cesium from 'cesium';
+
 function statusNode() {
   return document.querySelector('#loading-screen .loader-status');
 }
@@ -16,6 +18,13 @@ function showFailure(error, detail = '') {
   status.style.color = '#ff5f5f';
   console.error('[BM Bootstrap] God\'s Eye failed to start', error, detail);
 }
+
+// The fork point predates a few upstream modules being converted away from
+// the historic global Cesium runtime. Production Vite bundles evaluate those
+// modules strictly, so provide the same Cesium namespace before importing the
+// application graph. Keep this compatibility shim BM-only and removable once
+// the fork is rebased onto the newer upstream module boundaries.
+if (!globalThis.Cesium) globalThis.Cesium = Cesium;
 
 const status = statusNode();
 if (status) status.textContent = 'Loading application module...';
@@ -44,5 +53,5 @@ import('./main.js')
   })
   .catch((error) => {
     window.clearTimeout(stallTimer);
-    showFailure(error);
+    showFailure(error, error?.stack || '');
   });
