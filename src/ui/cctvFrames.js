@@ -174,6 +174,9 @@ export function _syncCctvSourceBadge(activeCamera, enabled) {
     this._cctvSourceBadge.textContent = hasDisplayedFrame
       ? `ROAD SNAPSHOT · FETCH ${fetched} · CHANGE ${changed}`
       : 'ROAD SNAPSHOT · WAITING FOR FRAME';
+    this._cctvSourceBadge.title = hasDisplayedFrame
+      ? `Ontario 511 roadway snapshot. Last fetched ${fetched}; last pixel change ${changed}.`
+      : 'Ontario 511 roadway snapshot awaiting its first frame.';
     this._cctvSourceBadge.dataset.frameState = hasDisplayedFrame
       ? 'snapshot'
       : 'loading';
@@ -185,5 +188,6 @@ export function _syncCctvSourceBadge(activeCamera, enabled) {
   ).toUpperCase();
   const status = String(activeCamera.sourceStatus || 'unknown').toUpperCase();
   this._cctvSourceBadge.textContent = `${kind} · ${status}`;
+  this._cctvSourceBadge.removeAttribute('title');
   this._cctvSourceBadge.dataset.frameState = 'ready';
 }
