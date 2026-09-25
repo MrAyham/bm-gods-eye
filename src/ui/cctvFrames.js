@@ -22,7 +22,9 @@ function cctvFrameFingerprint(image) {
 
 function isOntarioRoadSnapshot(camera) {
   const id = String(camera?.id || '').toLowerCase();
-  const provider = String(camera?.provider || camera?.sourceLabel || '').toLowerCase();
+  const provider = String(
+    camera?.provider || camera?.sourceLabel || '',
+  ).toLowerCase();
   return id.startsWith('ontario511:') || provider.includes('ontario 511');
 }
 
@@ -119,7 +121,8 @@ export function _settleCctvFrame(token, src, ok, loadedImage = null) {
     );
 
   if (!ok) {
-    // Leave the element untouched — a settled frame stays on screen.
+    // Keep the last settled pixels visible, but mark them stale below instead
+    // of allowing a failed refresh to look current.
     this._cctvFrame.dataset.error = 'true';
     syncBadge();
     return;
@@ -152,27 +155,45 @@ export function _syncCctvSourceBadge(activeCamera, enabled) {
   if (!this._cctvSourceBadge) return;
   if (!enabled || !activeCamera) {
     this._cctvSourceBadge.textContent = 'SOURCE · UNKNOWN';
+    this._cctvSourceBadge.removeAttribute('title');
     this._cctvSourceBadge.dataset.frameState = 'idle';
     return;
   }
   const hasDisplayedFrame =
     this._cctvFrameWrap?.classList.contains('has-frame');
+  const frameFailed = this._cctvFrame?.dataset.error === 'true';
   if (this._cctvFrame?.dataset.loading === 'true' && !hasDisplayedFrame) {
     this._cctvSourceBadge.textContent = 'FRAME · LOADING';
+    this._cctvSourceBadge.removeAttribute('title');
     this._cctvSourceBadge.dataset.frameState = 'loading';
     return;
   }
-  if (this._cctvFrame?.dataset.error === 'true' && !hasDisplayedFrame) {
+  if (frameFailed && !hasDisplayedFrame) {
     this._cctvSourceBadge.textContent = 'FRAME · UNAVAILABLE';
+    this._cctvSourceBadge.removeAttribute('title');
     this._cctvSourceBadge.dataset.frameState = 'error';
     return;
   }
 
   if (isOntarioRoadSnapshot(activeCamera)) {
-    const fetched = formatFrameClock(this._cctvFrame?.dataset.lastFetchedAt);
-    const changed = formatFrameClock(this._cctvFrame?.dataset.lastChangedAt);
+    const fetchedAt = Number(this._cctvFrame?.dataset.lastFetchedAt) || 0;
+    const changedAt = Number(this._cctvFrame?.dataset.lastChangedAt) || 0;
+    const fetched = formatFrameClock(fetchedAt);
+    const changed = formatFrameClock(changedAt);
+    const unchanged = fetchedAt > 0 && changedAt > 0 && fetchedAt > changedAt;
+    const changeLabel = unchanged ? 'UNCHANGED SINCE' : 'CHANGE';
+
+    if (frameFailed && hasDisplayedFrame) {
+      this._cctvSourceBadge.textContent =
+        `ROAD SNAPSHOT · STALE DISPLAY · LAST OK ${fetched} · ${changeLabel} ${changed}`;
+      this._cctvSourceBadge.title =
+        `Ontario 511 roadway snapshot. The latest refresh failed; displaying the last successful frame from ${fetched}. Last pixel change ${changed}.`;
+      this._cctvSourceBadge.dataset.frameState = 'stale';
+      return;
+    }
+
     this._cctvSourceBadge.textContent = hasDisplayedFrame
-      ? `ROAD SNAPSHOT · FETCH ${fetched} · CHANGE ${changed}`
+      ? `ROAD SNAPSHOT · FETCH ${fetched} · ${changeLabel} ${changed}`
       : 'ROAD SNAPSHOT · WAITING FOR FRAME';
     this._cctvSourceBadge.title = hasDisplayedFrame
       ? `Ontario 511 roadway snapshot. Last fetched ${fetched}; last pixel change ${changed}.`
