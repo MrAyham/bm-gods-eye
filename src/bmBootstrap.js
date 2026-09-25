@@ -1,7 +1,12 @@
-import * as Cesium from 'cesium';
-
 function statusNode() {
   return document.querySelector('#loading-screen .loader-status');
+}
+
+function setStatus(message, color = '') {
+  const status = statusNode();
+  if (!status) return;
+  status.textContent = message;
+  if (color) status.style.color = color;
 }
 
 function formatError(error) {
@@ -11,23 +16,13 @@ function formatError(error) {
 }
 
 function showFailure(error, detail = '') {
-  const status = statusNode();
-  if (!status) return;
   const message = formatError(error);
-  status.textContent = `BOOT ERROR: ${message}${detail ? ` · ${detail}` : ''}`;
-  status.style.color = '#ff5f5f';
+  setStatus(
+    `BOOT ERROR: ${message}${detail ? ` · ${detail}` : ''}`,
+    '#ff5f5f',
+  );
   console.error('[BM Bootstrap] God\'s Eye failed to start', error, detail);
 }
-
-// The fork point predates a few upstream modules being converted away from
-// the historic global Cesium runtime. Production Vite bundles evaluate those
-// modules strictly, so provide the same Cesium namespace before importing the
-// application graph. Keep this compatibility shim BM-only and removable once
-// the fork is rebased onto the newer upstream module boundaries.
-if (!globalThis.Cesium) globalThis.Cesium = Cesium;
-
-const status = statusNode();
-if (status) status.textContent = 'Loading application module...';
 
 window.addEventListener('error', (event) => {
   if (!event?.message && !event?.filename) return;
@@ -38,20 +33,41 @@ window.addEventListener('unhandledrejection', (event) => {
   showFailure(event.reason || 'Unhandled promise rejection');
 });
 
-const stallTimer = window.setTimeout(() => {
-  const current = statusNode();
-  if (!current) return;
-  if (current.textContent === 'Loading application module...') {
-    current.textContent = 'BOOT STALLED: application module did not start. Check module delivery through the BM gateway.';
-    current.style.color = '#ffb84c';
-  }
-}, 12_000);
+async function boot() {
+  setStatus('Loading Cesium engine...');
 
-import('./main.js')
-  .then(() => {
-    window.clearTimeout(stallTimer);
-  })
-  .catch((error) => {
-    window.clearTimeout(stallTimer);
+  const cesiumStallTimer = window.setTimeout(() => {
+    const current = statusNode();
+    if (current?.textContent === 'Loading Cesium engine...') {
+      setStatus('BOOT STALLED: Cesium engine is still loading...', '#ffb84c');
+    }
+  }, 20_000);
+
+  try {
+    const Cesium = await import('cesium');
+    window.clearTimeout(cesiumStallTimer);
+
+    // Compatibility bridge for modules from the fork point that still expect
+    // the historic global namespace. Remove after the upstream rebase.
+    if (!globalThis.Cesium) globalThis.Cesium = Cesium;
+
+    setStatus('Loading application module...');
+    const appStallTimer = window.setTimeout(() => {
+      const current = statusNode();
+      if (current?.textContent === 'Loading application module...') {
+        setStatus(
+          'BOOT STALLED: application module is still loading...',
+          '#ffb84c',
+        );
+      }
+    }, 20_000);
+
+    await import('./main.js');
+    window.clearTimeout(appStallTimer);
+  } catch (error) {
+    window.clearTimeout(cesiumStallTimer);
     showFailure(error, error?.stack || '');
-  });
+  }
+}
+
+void boot();
