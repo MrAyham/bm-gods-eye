@@ -22,10 +22,14 @@ test('namespaces Gods Eye provider APIs under the BM module path', () => {
   );
 });
 
-test('keeps BM-owned Ontario operations API on BM Core', () => {
+test('keeps BM-owned Ontario operations API and subroutes on BM Core', () => {
   assert.equal(
     rewriteBmApiPath('/api/ops/ontario511', '/modules/gods-eye/'),
     '/api/ops/ontario511',
+  );
+  assert.equal(
+    rewriteBmApiPath('/api/ops/ontario511/camera', '/modules/gods-eye/'),
+    '/api/ops/ontario511/camera',
   );
 });
 
