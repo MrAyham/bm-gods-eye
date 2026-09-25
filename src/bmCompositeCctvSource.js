@@ -90,11 +90,21 @@ function regionalCameraPriority(camera, region) {
   return 3;
 }
 
-function bmCameraFrameUrl(entry) {
+function bmCameraFrameUrl(entry, refreshMs = 10_000) {
   const cameraId = String(entry?.camera?.id || '').trim();
   const viewId = String(entry?.view?.id || '').trim();
   if (!cameraId || !viewId || !entry?.view?.url) return '';
-  const params = new URLSearchParams({ cameraId, viewId });
+  const cadence = Number.isFinite(Number(refreshMs))
+    ? Math.max(1_000, Number(refreshMs))
+    : 10_000;
+  const params = new URLSearchParams({
+    cameraId,
+    viewId,
+    // The panel only requests a same-camera frame when frameUrl changes. Bucket
+    // this value by the caller's refresh cadence so Ontario snapshots are
+    // actually reacquired instead of leaving the first successful image pinned.
+    frameTick: String(Math.floor(Date.now() / cadence)),
+  });
   return `${BM_CAMERA_FRAME_PATH}?${params.toString()}`;
 }
 
@@ -224,10 +234,10 @@ export function createBmCompositeCctvSource({
       };
     },
 
-    getFrameUrl(camera) {
+    getFrameUrl(camera, refreshMs) {
       const entry = ontarioById.get(String(camera?.id || ''));
-      if (entry) return bmCameraFrameUrl(entry);
-      return baseSource.getFrameUrl(camera);
+      if (entry) return bmCameraFrameUrl(entry, refreshMs);
+      return baseSource.getFrameUrl(camera, refreshMs);
     },
 
     getMediaUrl(camera) {
