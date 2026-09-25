@@ -1,5 +1,6 @@
 import { installBmFetchNamespace } from './bmFetchNamespace.js';
 import { mountBmOntarioAlertBanner } from './bmOntarioAlertsBanner.js';
+import { mountBmLiveWatch } from './bmLiveWatch.js';
 import { createStandaloneApplication } from './standalone/application.js';
 import { describeError } from './standalone/errors.js';
 
@@ -22,6 +23,8 @@ const application = createStandaloneApplication({
   allowQaRegistration: import.meta.env.DEV,
 });
 
+let unmountLiveWatch = null;
+
 application.subscribe((state) => {
   if (state.status === 'starting' && state.phase) {
     setLoaderStatus(`Starting ${state.phase}...`);
@@ -29,6 +32,11 @@ application.subscribe((state) => {
   }
   if (state.status === 'ready') {
     setLoaderStatus('God\'s Eye ready');
+    return;
+  }
+  if (state.status === 'destroying' || state.status === 'destroyed') {
+    unmountLiveWatch?.();
+    unmountLiveWatch = null;
     return;
   }
   if (state.status === 'failed') {
@@ -40,6 +48,8 @@ application
   .start()
   .then(() => {
     mountBmOntarioAlertBanner();
+    const viewer = application.getComponents()?.scene?.viewer;
+    unmountLiveWatch = mountBmLiveWatch({ viewer });
   })
   .catch((error) => {
     console.error("God's Eye View initialization failed:", error);
