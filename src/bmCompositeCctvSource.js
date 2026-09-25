@@ -51,6 +51,44 @@ function headingFromDirection(value) {
   return 0;
 }
 
+function requestedBmRegion() {
+  if (typeof window === 'undefined') return 'corridor';
+  try {
+    const region = new URL(window.location.href).searchParams.get('bmRegion');
+    return ['windsor', 'london', 'gta', 'corridor'].includes(region)
+      ? region
+      : 'corridor';
+  } catch {
+    return 'corridor';
+  }
+}
+
+function regionalCameraPriority(camera, region) {
+  const city = String(camera?.city || '');
+  if (region === 'windsor') {
+    if (city === 'Windsor / Essex') return 0;
+    if (city === 'London Corridor') return 1;
+    if (city === 'GTA Corridor') return 2;
+    return 3;
+  }
+  if (region === 'london') {
+    if (city === 'London Corridor') return 0;
+    if (city === 'Windsor / Essex') return 1;
+    if (city === 'GTA Corridor') return 2;
+    return 3;
+  }
+  if (region === 'gta') {
+    if (city === 'GTA Corridor') return 0;
+    if (city === 'London Corridor') return 1;
+    if (city === 'Windsor / Essex') return 2;
+    return 3;
+  }
+  if (city === 'Windsor / Essex') return 0;
+  if (city === 'London Corridor') return 1;
+  if (city === 'GTA Corridor') return 2;
+  return 3;
+}
+
 /**
  * Extend the native CCTV source with authenticated BM Ontario 511 cameras.
  * The Ontario developer key never enters this runtime; BM Core owns it.
@@ -121,13 +159,29 @@ export function createBmCompositeCctvSource({
         readOntario(options),
       ]);
 
-      const ontarioSources = ops ? ingestOntario(ops) : [];
+      const baseSources = Array.isArray(baseResult?.sources)
+        ? baseResult.sources
+        : [];
+      const region = requestedBmRegion();
+      const ontarioSources = ops
+        ? ingestOntario(ops).sort((a, b) => {
+            const priority =
+              regionalCameraPriority(a, region) - regionalCameraPriority(b, region);
+            if (priority !== 0) return priority;
+            const aLive = a.url ? 0 : 1;
+            const bLive = b.url ? 0 : 1;
+            if (aLive !== bLive) return aLive - bLive;
+            return String(a.name).localeCompare(String(b.name));
+          })
+        : [];
+
       return {
         ...baseResult,
-        sources: [
-          ...(Array.isArray(baseResult?.sources) ? baseResult.sources : []),
-          ...ontarioSources,
-        ],
+        // When the authenticated BM Ontario feed is present it becomes the
+        // primary catalog. The native upstream cameras are still retained after
+        // it, so standalone/source behavior remains available without letting an
+        // Austin seed win the active-camera slot on a Windsor BM launch.
+        sources: [...ontarioSources, ...baseSources],
       };
     },
 
@@ -158,8 +212,8 @@ export function createBmCompositeCctvSource({
       return {
         ...baseResult,
         cameras: [
-          ...(Array.isArray(baseResult?.cameras) ? baseResult.cameras : []),
           ...ontarioHealth,
+          ...(Array.isArray(baseResult?.cameras) ? baseResult.cameras : []),
         ],
       };
     },
