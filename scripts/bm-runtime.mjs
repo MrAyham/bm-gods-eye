@@ -2,11 +2,7 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createServer } from 'node:http';
-import {
-  build as buildVite,
-  createServer as createViteServer,
-  loadEnv,
-} from 'vite';
+import { createServer as createViteServer, loadEnv } from 'vite';
 import standaloneConfig from '../server/standalone/vite.config.js';
 
 const port = Number.parseInt(process.env.PORT || '4173', 10) || 4173;
@@ -15,6 +11,7 @@ const moduleBase = normalizeModuleBase(
   process.env.BM_MODULE_BASE || '/modules/gods-eye/',
 );
 const distDir = path.resolve(process.cwd(), 'dist');
+const distIndex = path.join(distDir, 'index.html');
 
 process.env.HOST = host;
 process.env.PORT = String(port);
@@ -31,22 +28,28 @@ function normalizeModuleBase(value) {
   return withLeading.endsWith('/') ? withLeading : `${withLeading}/`;
 }
 
-async function resolveStandaloneConfig(command) {
+async function existingFile(filePath) {
+  try {
+    const info = await stat(filePath);
+    return info.isFile();
+  } catch {
+    return false;
+  }
+}
+
+if (!(await existingFile(distIndex))) {
+  console.error('[BM Runtime] dist/index.html is missing. Run `npm run build:bm` during the Render Build phase.');
+  process.exit(1);
+}
+
+function resolveStandaloneConfig(command) {
   return typeof standaloneConfig === 'function'
     ? standaloneConfig({ command, mode: 'production' })
     : standaloneConfig;
 }
 
-console.log(`[BM Runtime] building bundled frontend for ${moduleBase}`);
-const buildConfig = await resolveStandaloneConfig('build');
-await buildVite({
-  ...buildConfig,
-  mode: 'production',
-});
-console.log('[BM Runtime] bundled frontend ready');
-
 // Keep the original provider plugins alive, but use Vite only as the API
-// middleware host. Browser assets are served from the production bundle above.
+// middleware host. Browser assets are served from the prebuilt production bundle.
 const serveConfig = await resolveStandaloneConfig('serve');
 const providerVite = await createViteServer({
   ...serveConfig,
@@ -91,7 +94,7 @@ function healthPayload() {
   return JSON.stringify({
     ok: true,
     service: 'bm-gods-eye',
-    runtime: 'bundled-static+provider-middleware',
+    runtime: 'prebuilt-static+provider-middleware',
     moduleBase,
     timestamp: new Date().toISOString(),
   });
@@ -104,15 +107,6 @@ function safeDistPath(relativePath) {
     return resolved;
   }
   return null;
-}
-
-async function existingFile(filePath) {
-  try {
-    const info = await stat(filePath);
-    return info.isFile();
-  } catch {
-    return false;
-  }
 }
 
 async function sendFile(req, res, filePath) {
@@ -142,8 +136,6 @@ async function sendFile(req, res, filePath) {
 }
 
 function providerRequest(req, res, originalUrl, pathname) {
-  // Direct Render access may retain the BM module prefix. The BM Core gateway
-  // normally strips it before forwarding provider requests.
   if (pathname.startsWith(`${moduleBase}api/`)) {
     req.url = originalUrl.replace(`${moduleBase}api/`, '/api/');
   }
@@ -223,9 +215,8 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // SPA fallback for module routes, while real missing assets still return 404.
   if (!path.extname(relativePath)) {
-    await sendFile(req, res, path.join(distDir, 'index.html'));
+    await sendFile(req, res, distIndex);
     return;
   }
 
@@ -237,7 +228,7 @@ const server = createServer(async (req, res) => {
 server.listen(port, host, () => {
   console.log(`[BM Runtime] God's Eye listening on http://${host}:${port}`);
   console.log(`[BM Runtime] module base ${moduleBase}`);
-  console.log('[BM Runtime] frontend mode bundled production assets');
+  console.log('[BM Runtime] frontend mode prebuilt production assets');
 });
 
 async function shutdown(signal) {
