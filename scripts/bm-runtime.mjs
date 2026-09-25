@@ -12,6 +12,10 @@ const moduleBase = normalizeModuleBase(
 );
 const distDir = path.resolve(process.cwd(), 'dist');
 const distIndex = path.join(distDir, 'index.html');
+const moduleDistDir = path.join(
+  distDir,
+  moduleBase.replace(/^\/+|\/+$/g, ''),
+);
 
 process.env.HOST = host;
 process.env.PORT = String(port);
@@ -42,6 +46,14 @@ if (!(await existingFile(distIndex))) {
     '[BM Runtime] dist/index.html is missing. Run `npm run build:bm` during the Render Build phase.',
   );
   process.exit(1);
+}
+
+const cesiumGlobalBundle = path.join(moduleDistDir, 'cesium', 'Cesium.js');
+const hasCesiumGlobalBundle = await existingFile(cesiumGlobalBundle);
+if (!hasCesiumGlobalBundle) {
+  console.warn(
+    `[BM Runtime] Cesium global bundle not found at ${cesiumGlobalBundle}. Production builds using vite-plugin-cesium require this file.`,
+  );
 }
 
 // Provider runtime only. Do not load the standalone browser Vite config here:
@@ -100,17 +112,26 @@ function healthPayload() {
     service: 'bm-gods-eye',
     runtime: 'prebuilt-static+provider-only-vite',
     moduleBase,
+    cesiumGlobalBundle: hasCesiumGlobalBundle ? 'present' : 'missing',
     timestamp: new Date().toISOString(),
   });
 }
 
-function safeDistPath(relativePath) {
-  const decoded = decodeURIComponent(relativePath || '');
-  const resolved = path.resolve(distDir, decoded || 'index.html');
-  if (resolved === distDir || resolved.startsWith(`${distDir}${path.sep}`)) {
+function safePathWithin(rootDir, relativePath, fallback = '') {
+  const decoded = decodeURIComponent(relativePath || fallback);
+  const resolved = path.resolve(rootDir, decoded || fallback);
+  if (resolved === rootDir || resolved.startsWith(`${rootDir}${path.sep}`)) {
     return resolved;
   }
   return null;
+}
+
+function safeDistPath(relativePath) {
+  return safePathWithin(distDir, relativePath, 'index.html');
+}
+
+function safeModuleDistPath(relativePath) {
+  return safePathWithin(moduleDistDir, relativePath, 'index.html');
 }
 
 async function sendFile(req, res, filePath) {
@@ -213,9 +234,22 @@ const server = createServer(async (req, res) => {
   }
 
   const relativePath = pathname.slice(moduleBase.length);
+
+  // Normal Vite assets live directly under dist/ (for example dist/assets/*).
   const candidate = safeDistPath(relativePath || 'index.html');
   if (candidate && (await existingFile(candidate))) {
     await sendFile(req, res, candidate);
+    return;
+  }
+
+  // vite-plugin-cesium includes the configured Vite base in its copy target.
+  // With BM_MODULE_BASE=/modules/gods-eye/, Cesium.js, Widgets, Workers and
+  // Assets are therefore written under dist/modules/gods-eye/cesium/* while
+  // the browser requests them at /modules/gods-eye/cesium/*. Serve that nested
+  // output as the second static lookup rather than incorrectly returning 404.
+  const moduleCandidate = safeModuleDistPath(relativePath || 'index.html');
+  if (moduleCandidate && (await existingFile(moduleCandidate))) {
+    await sendFile(req, res, moduleCandidate);
     return;
   }
 
@@ -234,6 +268,9 @@ server.listen(port, host, () => {
   console.log(`[BM Runtime] module base ${moduleBase}`);
   console.log('[BM Runtime] frontend mode prebuilt production assets');
   console.log('[BM Runtime] provider mode lightweight Vite middleware only');
+  console.log(
+    `[BM Runtime] Cesium global bundle ${hasCesiumGlobalBundle ? 'present' : 'missing'} at ${cesiumGlobalBundle}`,
+  );
 });
 
 async function shutdown(signal) {
