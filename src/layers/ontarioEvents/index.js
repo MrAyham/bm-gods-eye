@@ -9,7 +9,18 @@ function eventColor(event) {
 }
 
 function eventLabel(event) {
-  return [event.eventType, event.roadway, event.direction].filter(Boolean).join(' · ') || 'Ontario Road Event';
+  return (
+    [event.eventType, event.roadway, event.direction].filter(Boolean).join(' · ') ||
+    'Ontario Road Event'
+  );
+}
+
+function eventMapLabel(event) {
+  return (
+    [event.fullClosure ? 'CLOSED' : event.eventType, event.roadway]
+      .filter(Boolean)
+      .join(' · ') || 'ROAD EVENT'
+  );
 }
 
 /** Native Cesium layer for verified Ontario 511 road events from BM Core. */
@@ -32,7 +43,8 @@ export function createOntarioEventsLayer({ source } = {}) {
     updateInterval: 60_000,
 
     init(viewer) {
-      if (dataSource) throw new Error('Ontario events layer is already initialized');
+      if (dataSource)
+        throw new Error('Ontario events layer is already initialized');
       dataSource = new Cesium.CustomDataSource('ontario-events');
       dataSource.show = false;
       viewer.dataSources.add(dataSource);
@@ -57,7 +69,8 @@ export function createOntarioEventsLayer({ source } = {}) {
       request = current;
       try {
         const rows = await source.getSnapshot({ signal: current.signal });
-        if (current.signal.aborted || request !== current || !enabled) return false;
+        if (current.signal.aborted || request !== current || !enabled)
+          return false;
 
         dataSource.entities.removeAll();
         for (const event of rows) {
@@ -68,12 +81,44 @@ export function createOntarioEventsLayer({ source } = {}) {
               name: eventLabel(event),
               position: Cesium.Cartesian3.fromDegrees(event.lon, event.lat),
               point: {
-                pixelSize: event.fullClosure ? 13 : 10,
-                color: color.withAlpha(0.95),
-                outlineColor: Cesium.Color.BLACK.withAlpha(0.8),
-                outlineWidth: 2,
+                pixelSize: event.fullClosure ? 16 : 12,
+                color: color.withAlpha(0.97),
+                outlineColor: Cesium.Color.BLACK.withAlpha(0.9),
+                outlineWidth: 3,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                scaleByDistance: new Cesium.NearFarScalar(
+                  2_000,
+                  1.15,
+                  650_000,
+                  0.85,
+                ),
+              },
+              label: {
+                text: eventMapLabel(event),
+                font: '600 12px JetBrains Mono, monospace',
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 3,
+                showBackground: true,
+                backgroundColor: Cesium.Color.BLACK.withAlpha(0.72),
+                backgroundPadding: new Cesium.Cartesian2(7, 4),
+                pixelOffset: new Cesium.Cartesian2(0, -19),
+                horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+                  0,
+                  180_000,
+                ),
+                scaleByDistance: new Cesium.NearFarScalar(
+                  5_000,
+                  1,
+                  180_000,
+                  0.72,
+                ),
               },
               properties: {
                 provider: 'Ontario 511',
@@ -98,7 +143,8 @@ export function createOntarioEventsLayer({ source } = {}) {
         lastError = null;
         return true;
       } catch (error) {
-        if (current.signal.aborted || request !== current || !enabled) return false;
+        if (current.signal.aborted || request !== current || !enabled)
+          return false;
         lastError = error?.message || 'Ontario events source unavailable';
         return false;
       } finally {
