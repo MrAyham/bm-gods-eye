@@ -2,6 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createBmCompositeCctvSource } from './bmCompositeCctvSource.js';
 
+function assertOntarioProxyUrl(value, { cameraId, viewId }) {
+  const url = new URL(value, 'https://bm.test');
+  assert.equal(url.pathname, '/api/ops/ontario511/camera');
+  assert.equal(url.searchParams.get('cameraId'), cameraId);
+  assert.equal(url.searchParams.get('viewId'), viewId);
+  assert.match(url.searchParams.get('frameTick') || '', /^\d+$/);
+}
+
 test('BM composite CCTV merges Ontario 511 cameras into the native catalog', async () => {
   const baseSource = {
     async getCatalog() {
@@ -52,8 +60,14 @@ test('BM composite CCTV merges Ontario 511 cameras into the native catalog', asy
   assert.equal(ontario.lat, 42.3);
   assert.equal(ontario.lon, -82.9);
   assert.equal(ontario.feedType, 'image');
-  assert.equal(source.getFrameUrl({ id: 'ontario511:42' }), 'https://511on.ca/camera-42.jpg');
-  assert.equal(source.getMediaUrl({ id: 'ontario511:42' }), 'https://511on.ca/camera-42.jpg');
+  assertOntarioProxyUrl(source.getFrameUrl({ id: 'ontario511:42' }, 10_000), {
+    cameraId: '42',
+    viewId: '1',
+  });
+  assertOntarioProxyUrl(source.getMediaUrl({ id: 'ontario511:42' }), {
+    cameraId: '42',
+    viewId: '1',
+  });
   assert.equal(source.getFrameUrl({ id: 'native:1' }), '/native-frame.jpg');
 });
 
