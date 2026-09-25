@@ -34,38 +34,28 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 async function boot() {
-  setStatus('Loading Cesium engine...');
+  // Keep the BM bootstrap deliberately tiny. The upstream application already
+  // imports Cesium through its normal module graph. Importing the entire Cesium
+  // namespace here created a second eager evaluation path and caused a TDZ
+  // failure in the optimized production bundle before the application could
+  // start.
+  setStatus('Loading application module...');
 
-  const cesiumStallTimer = window.setTimeout(() => {
+  const stallTimer = window.setTimeout(() => {
     const current = statusNode();
-    if (current?.textContent === 'Loading Cesium engine...') {
-      setStatus('BOOT STALLED: Cesium engine is still loading...', '#ffb84c');
+    if (current?.textContent === 'Loading application module...') {
+      setStatus(
+        'BOOT STALLED: application module is still loading...',
+        '#ffb84c',
+      );
     }
   }, 20_000);
 
   try {
-    const Cesium = await import('cesium');
-    window.clearTimeout(cesiumStallTimer);
-
-    // Compatibility bridge for modules from the fork point that still expect
-    // the historic global namespace. Remove after the upstream rebase.
-    if (!globalThis.Cesium) globalThis.Cesium = Cesium;
-
-    setStatus('Loading application module...');
-    const appStallTimer = window.setTimeout(() => {
-      const current = statusNode();
-      if (current?.textContent === 'Loading application module...') {
-        setStatus(
-          'BOOT STALLED: application module is still loading...',
-          '#ffb84c',
-        );
-      }
-    }, 20_000);
-
     await import('./main.js');
-    window.clearTimeout(appStallTimer);
+    window.clearTimeout(stallTimer);
   } catch (error) {
-    window.clearTimeout(cesiumStallTimer);
+    window.clearTimeout(stallTimer);
     showFailure(error, error?.stack || '');
   }
 }
