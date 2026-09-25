@@ -1,6 +1,31 @@
 import { LayerLifecycle } from '../data/lifecycle.js';
 import { LayerPresentation } from './layerPresentation.js';
 import { createCyberSonarScene } from '../cyberSonarScene.js';
+
+function isBmMountedModule() {
+  const base = String(import.meta.env?.BASE_URL || '/');
+  return base.startsWith('/modules/gods-eye/');
+}
+
+async function enableBmOntarioDefaults(dataManager) {
+  const layerIds = ['cctv', 'ontario-events'];
+  const results = await Promise.allSettled(
+    layerIds.map((layerId) =>
+      dataManager.setEnabled(layerId, true, { origin: 'programmatic' }),
+    ),
+  );
+
+  results.forEach((result, index) => {
+    if (result.status === 'rejected' || result.value === false) {
+      const detail =
+        result.status === 'rejected'
+          ? result.reason?.message || String(result.reason)
+          : 'lifecycle rejected activation';
+      console.warn(`[BM Ontario] ${layerIds[index]} default activation failed: ${detail}`);
+    }
+  });
+}
+
 /** Register the application layer catalog before allowing state restoration. */
 export function createApplicationData({
   scene: { viewer, mapStackController },
@@ -57,6 +82,15 @@ export function createApplicationData({
   presentation.mount(document.getElementById('data-toggles'));
   styleManager.attachDataManager(dataManager);
   defer(createCyberSonarScene(viewer, dataManager));
+
+  // BM owns a regional operations posture: when mounted through the BM shell,
+  // start verified public roadway cameras and Ontario road events immediately.
+  // Shared views remain authoritative and standalone upstream behavior is unchanged.
+  if (isBmMountedModule() && !styleManager.hasShareState) {
+    queueMicrotask(() => {
+      void enableBmOntarioDefaults(dataManager);
+    });
+  }
 
   return { dataManager, catalog, presentation };
 }
