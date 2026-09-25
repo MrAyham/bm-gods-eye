@@ -8,6 +8,7 @@ function assertOntarioProxyUrl(value, { cameraId, viewId }) {
   assert.equal(url.searchParams.get('cameraId'), cameraId);
   assert.equal(url.searchParams.get('viewId'), viewId);
   assert.match(url.searchParams.get('frameTick') || '', /^\d+$/);
+  return url;
 }
 
 test('BM composite CCTV merges Ontario 511 cameras into the native catalog', async () => {
@@ -69,6 +70,46 @@ test('BM composite CCTV merges Ontario 511 cameras into the native catalog', asy
     viewId: '1',
   });
   assert.equal(source.getFrameUrl({ id: 'native:1' }), '/native-frame.jpg');
+});
+
+test('BM Ontario frame URLs advance with the requested refresh cadence', async () => {
+  const baseSource = {
+    async getCatalog() { return { sources: [] }; },
+    async getHealth() { return { cameras: [] }; },
+    getFrameUrl() { return ''; },
+    getMediaUrl() { return ''; },
+  };
+  const fetchOntarioOps = async () => ({
+    status: { cameras: 'live' },
+    cameras: [
+      {
+        id: '42',
+        location: 'Windsor',
+        latitude: 42.3,
+        longitude: -82.9,
+        views: [{ id: '1', url: 'https://511on.ca/camera-42.jpg', status: 'Active' }],
+      },
+    ],
+  });
+
+  const realNow = Date.now;
+  try {
+    Date.now = () => 100_000;
+    const source = createBmCompositeCctvSource({ baseSource, fetchOntarioOps });
+    await source.getCatalog();
+    const first = assertOntarioProxyUrl(
+      source.getFrameUrl({ id: 'ontario511:42' }, 10_000),
+      { cameraId: '42', viewId: '1' },
+    );
+    Date.now = () => 110_000;
+    const second = assertOntarioProxyUrl(
+      source.getFrameUrl({ id: 'ontario511:42' }, 10_000),
+      { cameraId: '42', viewId: '1' },
+    );
+    assert.notEqual(first.searchParams.get('frameTick'), second.searchParams.get('frameTick'));
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test('BM composite CCTV reports Ontario health without credentials or secrets', async () => {
