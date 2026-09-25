@@ -29,6 +29,14 @@ export const CAMERA_PRESETS = {
       roll: 0.0,
     },
   },
+  bmOntarioCorridor: {
+    destination: Cesium.Cartesian3.fromDegrees(-80.85, 42.93, 650000),
+    orientation: {
+      heading: Cesium.Math.toRadians(22),
+      pitch: Cesium.Math.toRadians(-88),
+      roll: 0.0,
+    },
+  },
 };
 
 /**
@@ -75,6 +83,37 @@ export function flyToAustin(viewer) {
       easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
     });
   }, 500);
+  return () => {
+    clearTimeout(timer);
+    if (!viewer.isDestroyed()) viewer.camera.cancelFlight();
+  };
+}
+
+/**
+ * BM shell startup view for the Windsor → London → GTA operating corridor.
+ * Keeps the upstream Austin default intact when the engine runs standalone.
+ * @returns {Function} Cancels the pending or active startup flight.
+ */
+export function flyToBmOntarioCorridor(viewer) {
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(-80.85, 42.93, 1800000),
+    orientation: {
+      heading: Cesium.Math.toRadians(22),
+      pitch: Cesium.Math.toRadians(-90),
+      roll: 0.0,
+    },
+  });
+
+  const timer = setTimeout(() => {
+    if (viewer.isDestroyed()) return;
+    viewer.camera.flyTo({
+      destination: CAMERA_PRESETS.bmOntarioCorridor.destination,
+      orientation: CAMERA_PRESETS.bmOntarioCorridor.orientation,
+      duration: 3.5,
+      easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
+    });
+  }, 350);
+
   return () => {
     clearTimeout(timer);
     if (!viewer.isDestroyed()) viewer.camera.cancelFlight();
