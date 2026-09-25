@@ -36,16 +36,30 @@ function bmLegacyCesiumImports() {
  * The fork point also predates cleanup of a few historic bare `Cesium.*`
  * references. The BM-only pre-transform above turns those into explicit ESM
  * imports at build time instead of depending on a mutable global namespace.
+ *
+ * Keep minification disabled temporarily while the BM fork is being integrated.
+ * This makes production stack traces point at readable function names and emits
+ * source maps, so any remaining legacy runtime reference can be fixed at source
+ * instead of patched through a global namespace.
  */
 export default defineConfig(({ command, mode }) => {
   const loaded = loadEnv(mode, process.cwd(), '');
   const read = (name) => process.env[name] ?? loaded[name];
 
-  return createBrowserViteConfig({
+  const config = createBrowserViteConfig({
     base: read('BM_MODULE_BASE') || '/modules/gods-eye/',
     googleApiKey: read('GOOGLE_MAPS_API_KEY'),
     cesiumToken: read('CESIUM_ION_TOKEN'),
     command,
     plugins: [bmLegacyCesiumImports()],
   });
+
+  return {
+    ...config,
+    build: {
+      ...(config.build || {}),
+      minify: false,
+      sourcemap: true,
+    },
+  };
 });
