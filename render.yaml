@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: bm-gods-eye
+    runtime: docker
+    plan: free
+    region: ohio
+    repo: https://github.com/MrAyham/bm-gods-eye.git
+    branch: bm/integration
+    dockerfilePath: ./Dockerfile.bm
+    dockerContext: .
+    healthCheckPath: /__bm_health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: BM_MODULE_BASE
+        value: /modules/gods-eye/
