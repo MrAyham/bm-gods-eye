@@ -2,6 +2,7 @@ import { createWeatherClock } from '../layers/weather/clock.js';
 import { createWeatherLayer } from '../layers/weather/index.js';
 import { createCyclonesLayer } from '../layers/cyclones/index.js';
 import { createWindLayer } from '../layers/wind/index.js';
+import { createOntarioEventsLayer } from '../layers/ontarioEvents/index.js';
 import { createLayerCatalog } from './catalog.js';
 import { LAYER_STATE_REGISTRY } from '../data/layerState.js';
 import { createMilitaryRegistry } from '../layers/aircraft/classification.js';
@@ -35,6 +36,7 @@ const SOURCE_METHODS = Object.freeze({
   military: ['getSnapshot'],
   vessels: ['getSnapshot'],
   cctv: ['getCatalog', 'getHealth', 'getFrameUrl', 'getMediaUrl'],
+  ontarioEvents: ['getSnapshot'],
   radio: ['getDirectory', 'recordClick'],
   traffic: [
     'requestRoads',
@@ -65,10 +67,16 @@ export const LOCAL_ONLY_LAYER_METADATA = Object.freeze([
   Object.freeze({ id: 'local-adsb', disposition: 'local-only' }),
 ]);
 
+/** BM-authenticated layers are intentionally not serialized into public shares. */
+export const BM_SESSION_LAYER_METADATA = Object.freeze([
+  Object.freeze({ id: 'ontario-events', disposition: 'local-only' }),
+]);
+
 /** Serialization metadata for every layer the application catalog constructs. */
 export const APPLICATION_LAYER_METADATA = Object.freeze([
   ...LAYER_STATE_REGISTRY,
   ...LOCAL_ONLY_LAYER_METADATA,
+  ...BM_SESSION_LAYER_METADATA,
 ]);
 
 /** Construct the current catalog without choosing any source provider.
@@ -147,6 +155,7 @@ export function createApplicationCatalog({
         createApplicationFirePerimeters({
           source: sources['fire-perimeters'],
         }),
+        createOntarioEventsLayer({ source: sources.ontarioEvents }),
         createApplicationAlpr({ surface, source: sources.alpr }),
         satellites,
         createApplicationLaunches({ source: sources.launches, satellites }),

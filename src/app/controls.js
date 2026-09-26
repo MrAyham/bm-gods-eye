@@ -1,7 +1,27 @@
 import { catalogControlServices } from './catalog.js';
 import { StyleManager } from '../ui/composition.js';
-import { flyToAustin } from '../camera.js';
+import { flyToAustin, flyToBmRegion } from '../camera.js';
 import { initCockpitCloudEffects } from '../cockpitCloudEffects.js';
+
+function isBmMountedModule() {
+  const base = String(import.meta.env?.BASE_URL || '/');
+  return base.startsWith('/modules/gods-eye/');
+}
+
+function bmRequestedRegion() {
+  if (typeof window === 'undefined') return 'corridor';
+  const value = new URL(window.location.href).searchParams.get('bmRegion');
+  return ['windsor', 'london', 'gta', 'corridor'].includes(value)
+    ? value
+    : 'corridor';
+}
+
+function bmRegionLabel(region) {
+  if (region === 'windsor') return 'Windsor / Essex';
+  if (region === 'london') return 'London corridor';
+  if (region === 'gta') return 'Mississauga / GTA';
+  return 'Windsor → London → GTA corridor';
+}
 
 /** Construct the existing controls and camera presentation. */
 export function createApplicationControls({
@@ -39,10 +59,15 @@ export function createApplicationControls({
   });
   defer(() => cockpitCloudEffects?.destroy());
 
-  // If no share link state, do default fly-to Austin
   if (!styleManager.hasShareState) {
-    loaderStatus.textContent = 'Flying to Austin, TX...';
-    defer(flyToAustin(viewer));
+    if (isBmMountedModule()) {
+      const region = bmRequestedRegion();
+      loaderStatus.textContent = `Opening ${bmRegionLabel(region)}...`;
+      defer(flyToBmRegion(viewer, region));
+    } else {
+      loaderStatus.textContent = 'Flying to Austin, TX...';
+      defer(flyToAustin(viewer));
+    }
   } else {
     loaderStatus.textContent = 'Restoring shared view...';
   }
