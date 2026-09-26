@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, bm/integration]
 
 permissions:
   contents: read
@@ -53,6 +53,64 @@ jobs:
 
       - name: Build production bundle
         run: npm run build
+
+  bm-integration:
+    name: BM runtime contract
+    if: github.ref == 'refs/heads/bm/integration' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: '1'
+      BM_MODULE_BASE: /modules/gods-eye/
+      HOST: 127.0.0.1
+      PORT: 4173
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.14.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build BM production bundle
+        run: npm run build:bm
+
+      - name: Start BM runtime
+        run: |
+          npm run start:bm > /tmp/bm-runtime.log 2>&1 &
+          echo $! > /tmp/bm-runtime.pid
+
+      - name: Verify BM health contract
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/__bm_health > /tmp/bm-health.json; then
+              cat /tmp/bm-health.json
+              node -e "const fs=require('fs');const h=JSON.parse(fs.readFileSync('/tmp/bm-health.json','utf8'));if(!h.ok||h.service!=='bm-gods-eye'||h.moduleBase!=='/modules/gods-eye/'||h.cesiumGlobalBundle!=='present')process.exit(1)"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/bm-runtime.log
+          exit 1
+
+      - name: Verify module shell route
+        run: curl --fail --silent --head http://127.0.0.1:4173/modules/gods-eye/
+
+      - name: Build BM Docker image
+        run: docker build -f Dockerfile.bm -t bm-gods-eye:ci .
+
+      - name: Stop BM runtime
+        if: always()
+        run: |
+          if [ -f /tmp/bm-runtime.pid ]; then kill "$(cat /tmp/bm-runtime.pid)" || true; fi
+          cat /tmp/bm-runtime.log || true
 
   windows-onboarding:
     name: Windows onboarding
